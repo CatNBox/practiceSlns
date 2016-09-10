@@ -1,0 +1,11 @@
+*.db
+pracBoostAsio/asioChatClient/.vs/asioChatClient/v14/.suo
+pracBoostAsio/asioDocPracSln/.vs/asioDocPracSln/v14/.suo
+*.suo
+*.tlog
+*.obj
+*.idb
+*.pdb
+*.exe
+*.ilk
+*.log
