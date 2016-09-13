@@ -1,6 +1,7 @@
 #include <iostream>
 #include <boost\asio.hpp>
 #include <boost\bind.hpp>
+#include <boost\thread.hpp>
 #include <boost\date_time\posix_time\posix_time.hpp>
 using std::cout;
 using std::endl;
@@ -103,9 +104,9 @@ int main()
 /* 핸들러 함수에 추가적으로 인자 전달하기
 	비동기적으로 동작하는 타이머를
 	1초마다 한번씩 켜지도록 구현.
-*/
 
-void print(const boost::system::error_code& /*e*/,
+
+void print(const boost::system::error_code& ,
 	boost::asio::deadline_timer* t, int* count)
 {
 	//타이머를 반복적으로 사용하기 위해서는
@@ -143,7 +144,7 @@ void print(const boost::system::error_code& /*e*/,
 		//bind함수로 바인딩하는 것으로 형식에 맞는 함수객체로 변환시켜주는 것
 		t->async_wait(boost::bind(print,
 			boost::asio::placeholders::error, t, count));
-		//boosy::asio::placeholders::error는 핸들러에 전해지는
+		//boost::asio::placeholders::error는 핸들러에 전해지는
 		//에러 객체를 위한 이름이 정해져있는 지정자.
 
 		GetLocalTime(&curTime);
@@ -165,7 +166,67 @@ int main()
 		boost::asio::placeholders::error, &t, &count));
 	io.run();
 
-	cout << "Final count is" << count << endl;
+	cout << "Final count is " << count << endl;
 	Sleep(10000);
 	return 0;
-}
+}*/
+
+//멤버함수를 핸들러로 사용하기
+/*
+	클래스 멤버 함수를 어떻게 콜백핸들러로 사용하는가
+	프로그램 자체의 기능은 인자를 핸들러에 바인딩하기 예제와 같음
+
+
+class printer
+{
+public:
+	//이 클래스의 생성자는 io_service의 참조값을 받아서
+	//timer_ 멤버를 초기화할 때 사용
+	printer(boost::asio::io_service& io)
+		: timer_(io, boost::posix_time::seconds(1)),
+		count_(0)
+	{
+		//boost::bind() 함수는 자유함수, 클래스멤버함수 모두 잘 작동
+		//모든 비 정적(non-static)멤버함수들은 암시적으로 this 매개변수를 가지고 있기 때문에,
+		// 함수에 this를 함께 바인딩 해야한다
+
+		//print멤버함수는 매개변수로 에러 객체를 받지 않기 때문에
+		//여기서는 boost::asio::placeholders::error placeholder 가 명시되지않음
+		timer_.async_wait(boost::bind(&printer::print,this));
+	}
+
+	~printer()
+	{
+		cout << "Final count is " << count_ << endl;
+		Sleep(10000);
+	}
+
+	void print()
+	{
+		if (count_ < 5)
+		{
+			cout << count_ << endl;
+			count_++;
+
+			timer_.expires_at(timer_.expires_at() + boost::posix_time::seconds(1));
+			timer_.async_wait(boost::bind(&printer::print, this));
+		}
+	}
+
+private:
+	boost::asio::deadline_timer timer_;
+	int count_;
+};
+
+int main()
+{
+	boost::asio::io_service io;
+	printer p(io);
+	io.run();
+
+	return 0;
+}*/
+
+//멀티스레드 프로그램에 핸들러를 동기화하기
+/*
+*/
