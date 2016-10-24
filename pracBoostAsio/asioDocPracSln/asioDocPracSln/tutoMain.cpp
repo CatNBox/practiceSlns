@@ -229,4 +229,94 @@ int main()
 
 //멀티스레드 프로그램에 핸들러를 동기화하기
 /*
-*/
+	멀티스레드 프로그램에서 콜백 핸들러를 동기화 하기 위한
+	boost::asio::strand클래스를 사용
+
+	asio의 콜백핸들러는 현재 boost::asio::io_service::run()를
+	호출한 스레드에서만 호출되는 것을 보장한다
+	따라서 하나의 스레드에서만 run()을 호출하는 것은 콜백핸들러가
+	동시에 실행되지 않는다는 것을 보장한다
+	-싱글스레드
+
+class printer
+{
+public:
+	//병렬로 돌아갈 deadline_timer 객체 멤버 한쌍, strand 객체 멤버가 하나 필요
+	//boost::asio::strand 는 자신을 통해 디스패치되는 핸들러에게, 실행중인 핸들러가
+	// 완료되어야만 다음 핸들러가 시작될 수 있다는 것을 보장
+	//이것은 io_service::run()이 몇 개의 스레드에서 실행되었던 상관없음
+	//동기화가 필요한 부분을 같은 strand에 wrap해야한다
+	
+	//비동기적인 오퍼레이션을 초기화 할 때, 각각의 콜백 핸들러는
+	// strand객체에 의해 감싸진다.
+	//wrap()함수는 strand를 통해 포함하게된 핸들러를 자동으로 디스패치해서 새로운 핸들러에 반환한다
+	//감싸진 핸들러들을 같은 strand객체에서 사용함으로써,
+	//우리는 그 핸들러들이 동시에 실행되지 않는 것을 보장할 수 있다.
+	printer(boost::asio::io_service& io)
+		: strand_(io),
+		timer1_(io, boost::posix_time::seconds(1)),
+		timer2_(io, boost::posix_time::seconds(1)),
+		count_(0)
+	{
+		timer1_.async_wait(strand_.wrap(boost::bind(&printer::print1, this)));
+		timer2_.async_wait(strand_.wrap(boost::bind(&printer::print2, this)));
+		//timer1_.async_wait(boost::bind(&printer::print1, this));
+		//timer2_.async_wait(boost::bind(&printer::print2, this));
+	}
+
+	~printer()
+	{
+		cout << "Final count is " << count_ << endl;
+		Sleep(10000);
+	}
+
+	//멀티스레드 프로그램에서 비동기적인 오퍼레이션을 하는 핸들러들은
+	// 공유리소스를 접근하려 할 때, 동기화된다.
+	//print1, print2 에게 공유되는 리소스는 std::cout과 count_ 멤버이다.
+	void print1()
+	{
+		cout << "print1 진입 - ";
+		if (count_ < 10)
+		{
+			cout << "Timer 1: " << count_ << endl;
+			++count_;
+
+			timer1_.expires_at(timer1_.expires_at() + boost::posix_time::seconds(1));
+			timer1_.async_wait(strand_.wrap(boost::bind(&printer::print1, this)));
+			//timer1_.async_wait(boost::bind(&printer::print1, this));
+		}
+		cout << "print1 종료" << endl;
+	}
+
+	void print2()
+	{
+		cout << "print2 진입 - ";
+		if (count_ < 10)
+		{
+			cout << "Timer 2: " << count_ << endl;
+			++count_;
+
+			timer2_.expires_at(timer2_.expires_at() + boost::posix_time::seconds(1));
+			timer2_.async_wait(strand_.wrap(boost::bind(&printer::print2, this)));
+			//timer2_.async_wait(boost::bind(&printer::print2, this));
+		}
+		cout << "print2 종료" << endl;
+	}
+
+private:
+	boost::asio::strand strand_;
+	boost::asio::deadline_timer timer1_;
+	boost::asio::deadline_timer timer2_;
+	int count_;
+};
+
+int main()
+{
+	boost::asio::io_service io;
+	printer p(io);
+	boost::thread t(boost::bind(&boost::asio::io_service::run, &io));
+	io.run();
+	t.join();
+	
+	return 0;
+}*/
